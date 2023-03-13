@@ -1,0 +1,14 @@
+__pycache__
+.ipynb_checkpoints
+.vscode
+Data
+Error
+Out
+general_utils/__pycache__
+Old code
+Processed Data
+Trees segmentation
+Untitled.ipynb
+xylella_detection_cnn.py 
+xylella_detection_nn.sh
+Xylella_detection_nn.ipynb
