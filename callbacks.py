@@ -6,7 +6,7 @@ from tensorflow.keras.callbacks import Callback
 
 
 class MyCallback(Callback):
-    def __init__(self, monitor='val_loss', value=50, verbose=1, patience=1000):
+    def __init__(self, monitor='val_loss', value=50, verbose=1, patience=1000, test_data=None):
         super(Callback, self).__init__()
         self.monitor = monitor
         self.value = value
@@ -14,6 +14,7 @@ class MyCallback(Callback):
         self.patience=patience  
         self.starttime = timer()
         self.best_weights = None # Save the best weights across all folds 
+        self.test_data = test_data
         
     def on_train_begin(self, logs=None):
         # El numero de epoch que ha esperado cuando la perdida ya no es minima.
@@ -25,8 +26,13 @@ class MyCallback(Callback):
         if epoch%100 == 0:
             elapsed_time = float(timer()-self.starttime)
             self.starttime = timer()
-            print('Epoch {}/{} - Elapsed_time: {:3.2f} s - Train loss: {:7.2f} - Train ACC {:7.2f} - Train AUC {:7.2f} - Val loss: {:7.2f} - Val ACC: {:7.2f} - Val AUC {:7.2f}.'.format(
-                epoch+1, self.params.get('epochs'), elapsed_time, logs['loss'], logs['accuracy'], logs['auc'], logs['val_loss'], logs['val_accuracy'], logs['val_auc']))
+            print('Epoch {}/{} - Elapsed_time: {:3.2f} s'.format(epoch+1, self.params.get('epochs'), elapsed_time))
+            print('Train loss: {:7.2f} - Train ACC: {:7.2f} - Train AUC {:7.2f}'.format(logs['loss'], logs['accuracy'], logs['auc']))
+            print('Valid loss: {:7.2f} - Valid ACC: {:7.2f} - Valid AUC {:7.2f}.'.format(logs['val_loss'], logs['val_accuracy'], logs['val_auc']))
+            if self.test_data is not None:
+            # Evaluate the model on the test set
+                test_loss, test_acc, test_auc = self.model.evaluate(self.test_data[0], self.test_data[1], verbose=0)
+                print('Test  loss: {:7.2f} - Test  ACC: {:7.2f} - Test  AUC {:7.2f}.'.format(test_loss, test_acc, test_auc))
             
         current = logs.get(self.monitor)   
         if current > self.best:
@@ -51,6 +57,7 @@ class MyCallback(Callback):
             elapsed_time = float(timer()-self.starttime)
             print('Epoch {}/{} - Elapsed_time: {:3.2f} s - Train loss: {:7.2f} - Train ACC {:7.2f} - Train AUC {:7.2f} - Val loss: {:7.2f} - Val ACC: {:7.2f} - Val AUC {:7.2f}.'.format(
                 epoch+1, self.params.get('epochs'), elapsed_time, logs['loss'], logs['accuracy'], logs['auc'], logs['val_loss'], logs['val_accuracy'], logs['val_auc']))
+
     # Restore the best weights once training is finished       
     def on_train_end(self, epoch, logs={}):
         print('Restaurando los pesos del modelo del final de la mejor epoch.')

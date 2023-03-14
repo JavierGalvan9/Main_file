@@ -3,6 +3,7 @@ import os
 import sys
 from collections import Counter
 
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -12,19 +13,19 @@ sys.path.append(os.path.join(parentDir, "general_utils"))
 import file_management
 
 
-def groupby_split(df, feature_1, feature_2, test_size):
+def groupby_split(df, labels='', inseparable_set='', test_size=0.05):
     # Given df and feature_2, groupby feature_2 and split each group into train and test sets
     # feature_1 is the feature to stratify the split
     # test_size is the size of the test set
     # Return a list of tuples (train, test) where train and test are dataframes
     
     # Create new dataframe with the first row for each unique value of feature_2
-    df_new = df.groupby(feature_2).first().reset_index()
+    df_new = df.groupby(inseparable_set).first().reset_index()
     # Stratify the split on feature_1
-    train, test = train_test_split(df_new, test_size=test_size, stratify=df_new[feature_1], random_state=88)
+    train, test = train_test_split(df_new, test_size=test_size, stratify=df_new[labels], random_state=42)
     # From the original dataframe, select the rows that have the same values of feature_2 as the train and test dataframes
-    train_df = df[df[feature_2].isin(train[feature_2])]
-    test_df = df[df[feature_2].isin(test[feature_2])]
+    train_df = df[df[inseparable_set].isin(train[inseparable_set])]
+    test_df = df[df[inseparable_set].isin(test[inseparable_set])]
     # Return a list of tuples (train, test) where train and test are dataframes
     return train_df, test_df
 
@@ -66,24 +67,50 @@ def data_preprocessing(path, n_samples=None, use_spectral_bands=True, use_indice
 
         # Split the data into train and test sets (stratified to keep the same proportion of labels in each set but 
         # keeping each unique tree cluster in only one set)
-        train_df, test_df = groupby_split(df, 'PCR', 'cluster_id', test_size=0.05)
-
+        train_df, test_df = groupby_split(df, labels='PCR', inseparable_set='cluster_id', test_size=0.1)
         # Get the cluster ids of the train and test sets
         cluster_id_train = train_df['cluster_id']
         cluster_id_test = test_df['cluster_id']
+        # Get the latitudes and longitudes of the training and testing sets
+        lat_train = train_df['Lats']
+        lon_train = train_df['Longs']
+        lat_test = test_df['Lats']
+        lon_test = test_df['Longs']
+
+        # Plot the trees used for training and testing
+        original_df = file_management.load_lzma('Processed Data/dataset.lzma')
+        metadata_df = file_management.load_lzma('Processed Data/metadata_df.lzma')
+        pan_shape = metadata_df['original_shape']
+        # Loc three columns of original dataset
+        original_df = original_df.loc[:, ['N', 'R', 'G', 'Longs', 'Lats']]	
+        rgb_df = (255*original_df/original_df.max()).astype(np.uint8)
+        rgb = np.dstack((rgb_df['N'].values.reshape(pan_shape),rgb_df['R'].values.reshape(pan_shape),rgb_df['G'].values.reshape(pan_shape)))
+        fig = plt.figure()
+        plt.imshow(rgb,
+                extent=[original_df['Longs'].min(), original_df['Longs'].max(), original_df['Lats'].min(), original_df['Lats'].max()])
+        plt.xlabel('Longitude')
+        plt.ylabel('Latitude')
+        plt.ticklabel_format(useOffset=False)
+        # Draw a circle around the trees used for training and testing 
+        plt.scatter(lon_train, lat_train, s=(72/300)**2, alpha=1, c='yellow', marker='s')
+        plt.scatter(lon_test, lat_test, s=(72/300)**2, alpha=1, c='indigo', marker='s')
+        plt.legend(['Train', 'Test'])
+        # Save the plot
+        path = 'Images/Train_test_layout'
+        os.makedirs(path, exist_ok=True)
+        plt.savefig(os.path.join(path, 'layout_rgb.png'), dpi=300, transparent=True)
+        plt.close()
 
         # Split the data into train and test dataframes (stratified to keep the same proportion of classes in each set)
         # train_df, test_df = train_test_split(df, test_size=0.05, stratify=df['PCR'], random_state=88)
-        
         # Choose the features to use in the classification task
-        # n_samples = df.shape[0] # 100
         if use_spectral_bands and not use_indices:
             spectral_bands = ['C', 'B', 'G', 'Y', 'R', 'RE', 'N', 'N2']
             X_train = train_df.loc[:, spectral_bands] # only spectral bands
             X_test = test_df.loc[:, spectral_bands] # only spectral bands
         elif not use_spectral_bands and use_indices:
             X_train = train_df.iloc[:, 8:-4] # indices
-            X_test = test_df.iloc[:, 8:-4] # indices
+            X_test = test_df.iloc[:, 8:-4] # indices            
         elif use_spectral_bands and use_indices:
             spectral_bands = ['C', 'B', 'G', 'Y', 'R', 'RE', 'N', 'N2']
             X_train = train_df.loc[:, spectral_bands + list(train_df.columns[8:-4])]
@@ -93,17 +120,21 @@ def data_preprocessing(path, n_samples=None, use_spectral_bands=True, use_indice
             print("Error: No features were selected!")
             sys.exit()
 
+        # Print the column names used in X_train and X_test
+        print("Features used in the classification task: ")
+        print(X_train.columns)
+
         # Save the labels in a separate variable 
         y_train = train_df['PCR'].values
         y_test = test_df['PCR'].values
         
-        feature = 'PCR'
         # Print the number of samples in each set
         print('Training set size: ', len(train_df))
         print('Test set size: ', len(test_df))
 
         # Ensure that the proportion of samples in each set is the same as the original dataset
         # Print the proportion samples in each set by dividing the counter by the total number of samples
+        feature = 'PCR'
         print('Original dataset proportions: ', get_class_proportions(df, feature))
         print('Training set proportions: ', get_class_proportions(train_df, feature) )
         print('Test set proportions: ', get_class_proportions(test_df, feature) )

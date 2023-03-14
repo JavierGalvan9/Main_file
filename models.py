@@ -47,16 +47,31 @@ def NN_model(n_features, dropout_rate=0.2):
     classifier.compile(optimizer = "adam", loss = "binary_crossentropy", metrics = ["accuracy", 'AUC'])
     return classifier
 
+# Define the model architecture
+def customizable_NN_model(n_features, input_dim=None, dropout_rate=0.2, n_layers=4, hidden_units=32, activation='relu'):
+    # Define the model architecture and hyperparameters 
+    classifier = Sequential()
+    classifier.add(Dense(units=hidden_units, activation=activation, input_dim=input_dim, kernel_initializer = 'glorot_normal'))
+    # Add dropout layer to avoid overfitting 
+    classifier.add(Dropout(dropout_rate))
+    for i in range(n_layers-1):
+        classifier.add(Dense(units=hidden_units, activation=activation, kernel_initializer = 'glorot_normal'))
+        classifier.add(BatchNormalization())         
+    # Output layer (binary classification) 
+    classifier.add(Dense(units = 1, kernel_initializer = 'glorot_normal',  activation = "sigmoid"))
+    # Compile the model with the Adam optimizer and the binary cross-entropy loss function
+    classifier.compile(optimizer = "adam", loss = "binary_crossentropy", metrics = ["accuracy", 'AUC'])
+    return classifier
+
 # Define the model architecture and hyperparameters for the L2-regularized model 
-def L2_regularized_model(n_features):
+def L2_regularized_model(n_features, dropout_rate=0.2):
     # Define the model architecture and hyperparameters 
     classifier = Sequential()
     # Input layer with L2 regularization 
     classifier.add(Dense(units = 128, input_dim = n_features, kernel_initializer = 'glorot_normal',  activation = "relu",
                          kernel_regularizer=regularizers.L2(0.01)))
     # Add dropout layer to avoid overfitting 
-    if args.dropout:
-        classifier.add(Dropout(0.2))
+    classifier.add(Dropout(dropout_rate))
     # Second layer
     classifier.add(Dense(units = 64, kernel_initializer = 'glorot_normal',  activation = "relu", 
                          kernel_regularizer=regularizers.L2(0.01)))
